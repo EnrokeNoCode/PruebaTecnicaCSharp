@@ -369,6 +369,9 @@
             Controls.Add(txtPrecioVenta);
             Controls.Add(txtDescripcion);
             Controls.Add(txtCodigoBarra);
+            FormBorderStyle = FormBorderStyle.FixedSingle;
+            MaximizeBox = false;
+            MinimizeBox = false;
             Name = "FrmVentas";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "FrmVentas";

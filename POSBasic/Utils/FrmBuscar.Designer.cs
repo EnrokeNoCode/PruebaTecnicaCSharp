@@ -29,11 +29,11 @@
         private void InitializeComponent()
         {
             panel1 = new Panel();
+            label2 = new Label();
             label1 = new Label();
             txtBuscar = new TextBox();
             dgvResultado = new DataGridView();
             label8 = new Label();
-            label2 = new Label();
             panel1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvResultado).BeginInit();
             SuspendLayout();
@@ -47,6 +47,17 @@
             panel1.Name = "panel1";
             panel1.Size = new Size(570, 85);
             panel1.TabIndex = 0;
+            // 
+            // label2
+            // 
+            label2.AutoSize = true;
+            label2.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
+            label2.ForeColor = Color.IndianRed;
+            label2.Location = new Point(3, 60);
+            label2.Name = "label2";
+            label2.Size = new Size(352, 17);
+            label2.TabIndex = 19;
+            label2.Text = "OBS: Solo hace la busqueda por el campo DESCRIPCION";
             // 
             // label1
             // 
@@ -85,17 +96,6 @@
             label8.TabIndex = 18;
             label8.Text = "OBS: Para recupera el Dato debemos Pulsar Doble Click con el Mouse en la Linea deseada";
             // 
-            // label2
-            // 
-            label2.AutoSize = true;
-            label2.Font = new Font("Segoe UI", 9.75F, FontStyle.Bold, GraphicsUnit.Point, 0);
-            label2.ForeColor = Color.IndianRed;
-            label2.Location = new Point(3, 60);
-            label2.Name = "label2";
-            label2.Size = new Size(352, 17);
-            label2.TabIndex = 19;
-            label2.Text = "OBS: Solo hace la busqueda por el campo DESCRIPCION";
-            // 
             // FrmBuscar
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -104,6 +104,9 @@
             Controls.Add(label8);
             Controls.Add(dgvResultado);
             Controls.Add(panel1);
+            FormBorderStyle = FormBorderStyle.FixedSingle;
+            MaximizeBox = false;
+            MinimizeBox = false;
             Name = "FrmBuscar";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "FrmBuscar";

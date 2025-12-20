@@ -196,6 +196,9 @@
             Controls.Add(dgvClientes);
             Controls.Add(panel2);
             Controls.Add(panel1);
+            FormBorderStyle = FormBorderStyle.FixedSingle;
+            MaximizeBox = false;
+            MinimizeBox = false;
             Name = "FrmClientes";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "FrmClientes";

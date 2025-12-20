@@ -263,23 +263,7 @@ namespace POSBasic.Forms
                 return;
             }
 
-            // Solo habilitamos el detalle
-            txtCodigoBarra.Enabled = true;
-            txtCantidad.Enabled = true;
-            btnAgregarDetalle.Enabled = true;
-            btnEliminarDetalle.Enabled = true;
-            dgvVentasDet.Enabled = true;
-            btnGuardar.Enabled = true;
-            _editar = 1;
-
-            // Mantener cabecera bloqueada
-            txtNumVenta.Enabled = false;
-            txtCliente.Enabled = false;
-            txtFechaVenta.Enabled = false;
-
-            btnNuevo.Enabled = false;
-            btnEditar.Enabled = false;
-            btnEliminar.Enabled = false;
+            ValidarBotonesEditarEliminar();
         }
 
         /* funciones y validaciones */
@@ -298,7 +282,7 @@ namespace POSBasic.Forms
                 txtCliente.Tag = f.Resultado["Codigo"].ToString();
                 txtCliente.Text = f.Resultado["Descripcion"].ToString();
                 if (f.Resultado.Table.Columns.Contains("CampoExtra1"))
-                    lblCliente.Text = f.Resultado["CampoExtra2"].ToString();
+                    lblCliente.Text = f.Resultado["CampoExtra1"].ToString();
                 txtCodigoBarra.Focus();
             }
         }
@@ -379,10 +363,24 @@ namespace POSBasic.Forms
 
         private void ValidarBotonesEditarEliminar()
         {
-            btnEditar.Enabled = true;
-            btnEliminar.Enabled = true;
-            btnGuardar.Enabled = false;
+            txtCodigoBarra.Enabled = true;
+            txtCantidad.Enabled = true;
+            btnAgregarDetalle.Enabled = true;
+            btnEliminarDetalle.Enabled = true;
+            dgvVentasDet.Enabled = true;
+            btnGuardar.Enabled = true;
+            _editar = 1;
+
+            txtNumVenta.Enabled = false;
+            txtCliente.Enabled = false;
+            txtFechaVenta.Enabled = false;
+
             btnNuevo.Enabled = false;
+            btnEditar.Enabled = false;
+            btnEliminar.Enabled = false;
+
+            btnAgregarDetalle.Enabled = true;
+            btnEliminarDetalle.Enabled = true;
         }
 
         private void ValidarBotonesInicio()
@@ -393,6 +391,8 @@ namespace POSBasic.Forms
             btnSiguiente.Enabled = true;
             btnAnterior.Enabled = true;
             btnNuevo.Enabled = true;
+            btnAgregarDetalle.Enabled = false;
+            btnEliminarDetalle.Enabled= false;
         }
         private void ValidarBotonesNuevo()
         {
@@ -402,6 +402,8 @@ namespace POSBasic.Forms
             btnSiguiente.Enabled = false;
             btnAnterior.Enabled = false;
             btnNuevo.Enabled = false;
+            btnAgregarDetalle.Enabled = true;
+            btnEliminarDetalle.Enabled = true;
         }
 
         private void InicializarDetalle()
