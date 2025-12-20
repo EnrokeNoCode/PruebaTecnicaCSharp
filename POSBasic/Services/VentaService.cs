@@ -11,41 +11,49 @@ namespace POSBasic.Services
         public DataTable ListarCodVentas()
         {
             var dt = new DataTable();
-            using var cn = OracleConnectionFactory.GetConnection();
-            cn.Open();
+            try
+            {
+                using var cn = OracleConnectionFactory.GetConnection();
+                cn.Open();
 
-            using var da = new OracleDataAdapter(
-                @"SELECT codventa
-                  FROM venta
-                  ORDER BY codventa DESC", cn);
-
-            da.Fill(dt);
+                using var da = new OracleDataAdapter( @"SELECT codventa FROM venta ORDER BY codventa DESC", cn);
+                da.Fill(dt);
+            }
+            catch (OracleException ex)
+            {
+                throw new Exception("Error al listar ventas: " + ex.Message);
+            }
             return dt;
         }
         //Funcion para Mostrar Ventas cuando recorremos el formulario
         public DataTable ObtenerCabecera(int codventa)
         {
             var dt = new DataTable();
-            using var cn = OracleConnectionFactory.GetConnection();
-            cn.Open();
 
-            using var da = new OracleDataAdapter(
-                @"SELECT v.codventa,
-                         v.fechaventa,
-                         v.numventa,
-                         v.codcliente,
-                         c.nrodoc,
-                         c.nombre || ', ' || c.apellido AS cliente,
-                         v.totalventa
-                  FROM venta v
-                  JOIN cliente c ON c.codcliente = v.codcliente
-                  WHERE v.codventa = :id", cn);
-
-            da.SelectCommand.Parameters.Add(":id", codventa);
-            da.Fill(dt);
+            try
+            {
+                using var cn = OracleConnectionFactory.GetConnection();
+                cn.Open();
+                using var da = new OracleDataAdapter(
+                    @"SELECT v.codventa,
+                     v.fechaventa,
+                     v.numventa,
+                     v.codcliente,
+                     c.nrodoc,
+                     c.nombre || ', ' || c.apellido AS cliente,
+                     v.totalventa
+                     FROM venta v
+                     JOIN cliente c ON c.codcliente = v.codcliente
+                     WHERE v.codventa = :id", cn);
+                da.SelectCommand.Parameters.Add(":id", codventa);
+                da.Fill(dt);
+            }
+            catch (OracleException ex)
+            {
+                throw new Exception($"Error al obtener cabecera de la venta ({codventa}): {ex.Message}" );
+            }
             return dt;
         }
-        
         public DataTable ObtenerDetalle(int codventa)
         {
             var dt = new DataTable();
@@ -83,7 +91,6 @@ namespace POSBasic.Services
 
             try
             {
-                //Insertar cabecera
                 using (var cmdCab = new OracleCommand("SP_INSERTAR_VENTA_CAB", cn))
                 {
                     cmdCab.CommandType = CommandType.StoredProcedure;
@@ -97,10 +104,7 @@ namespace POSBasic.Services
                     cmdCab.ExecuteNonQuery();
                     codventa = Convert.ToInt32(pOut.Value.ToString());
                 }
-
                 decimal totalVenta = 0;
-
-                //Insertar detalle
                 foreach (DataRow row in dtDetalle.Rows)
                 {
                     int codProducto = Convert.ToInt32(row["CodProducto"]);
@@ -123,15 +127,11 @@ namespace POSBasic.Services
 
                     totalVenta += subtotal;
                 }
-
-                // Actualizar total de la venta
-                using var cmdTotal = new OracleCommand(
-                    "UPDATE venta SET totalventa = :total WHERE codventa = :codventa", cn);
+                using var cmdTotal = new OracleCommand("UPDATE venta SET totalventa = :total WHERE codventa = :codventa", cn);
                 cmdTotal.Transaction = tran;
                 cmdTotal.Parameters.Add("total", OracleDbType.Decimal).Value = totalVenta;
                 cmdTotal.Parameters.Add("codventa", OracleDbType.Int32).Value = codventa;
                 cmdTotal.ExecuteNonQuery();
-
                 tran.Commit();
             }
             catch (Exception ex)
@@ -142,40 +142,46 @@ namespace POSBasic.Services
             }
             return codventa;
         }
-
         public void ActualizarDetalleVenta(int codventa, DataTable dtDetalle)
         {
             using var cn = OracleConnectionFactory.GetConnection();
             cn.Open();
 
+            using var tran = cn.BeginTransaction();
+
             try
             {
-                using var cmd = new OracleCommand("SP_ACTUALIZAR_DETALLE_VENTA", cn);
-                cmd.CommandType = CommandType.StoredProcedure;
+                using (var cmdClear = new OracleCommand("SP_LIMPIAR_DETALLE_VENTA", cn))
+                {
+                    cmdClear.CommandType = CommandType.StoredProcedure;
+                    cmdClear.Transaction = tran;
+                    cmdClear.Parameters.Add("p_codventa", OracleDbType.Int32).Value = codventa;
+                    cmdClear.ExecuteNonQuery();
+                }
+                foreach (DataRow row in dtDetalle.Rows)
+                {
+                    using var cmdDet = new OracleCommand("SP_ACTUALIZAR_VENTA_DET", cn)
+                    {
+                        CommandType = CommandType.StoredProcedure,
+                        Transaction = tran
+                    };
 
-                cmd.Parameters.Add("p_codventa", OracleDbType.Int32).Value = codventa;
+                    cmdDet.Parameters.Add("p_codventa", OracleDbType.Int32).Value = codventa;
+                    cmdDet.Parameters.Add("p_codproducto", OracleDbType.Int32).Value = Convert.ToInt32(row["CodProducto"]);
+                    cmdDet.Parameters.Add("p_cantidad", OracleDbType.Decimal).Value = Convert.ToDecimal(row["Cantidad"]);
+                    cmdDet.Parameters.Add("p_precio", OracleDbType.Decimal).Value = Convert.ToDecimal(row["Precio"]);
 
-                // Convertir DataTable a JSON simple
-                string jsonDetalle = JsonConvert.SerializeObject(
-                    dtDetalle.AsEnumerable().Select(r => new {
-                        codproducto = r.Field<int>("CodProducto"),
-                        precio = r.Field<decimal>("Precio"),
-                        cantidad = r.Field<decimal>("Cantidad"),
-                        subtotal = r.Field<decimal>("Subtotal")
-                    })
-                );
+                    cmdDet.ExecuteNonQuery();
+                }
 
-                cmd.Parameters.Add("p_jsondetalle", OracleDbType.Clob).Value = jsonDetalle;
-
-                cmd.ExecuteNonQuery();
+                tran.Commit();
             }
-            catch (OracleException ex)
+            catch
             {
-                throw new Exception("Error en la actualización de la venta: " + ex.Message);
+                tran.Rollback();
+                throw;
             }
         }
-
-
         public void EliminarVenta(int codventa)
         {
             using var cn = OracleConnectionFactory.GetConnection();

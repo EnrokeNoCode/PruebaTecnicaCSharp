@@ -15,11 +15,7 @@ namespace POSBasic.Services
             {
                 using var cn = OracleConnectionFactory.GetConnection();
                 cn.Open();
-
-                using var da = new OracleDataAdapter(
-                    "SELECT codcliente, nrodoc, nombre, apellido FROM cliente",
-                    cn);
-
+                using var da = new OracleDataAdapter("SELECT codcliente, nrodoc, nombre, apellido FROM cliente", cn);
                 da.Fill(dt);
             }
             catch (OracleException ex)
@@ -70,79 +66,67 @@ namespace POSBasic.Services
                 using var cn = OracleConnectionFactory.GetConnection();
                 cn.Open();
 
-                using var transaction = cn.BeginTransaction();
-                using (var cmdVal = new OracleCommand(
-                    "SELECT COUNT(*) FROM CLIENTE WHERE NRODOC = :nrodoc AND CODCLIENTE <> :codcliente", cn))
+                using var tran = cn.BeginTransaction();
+
+                using var cmd = new OracleCommand("SP_ACTUALIZAR_CLIENTE", cn)
                 {
-                    cmdVal.Parameters.Add(":nrodoc", c.nrodoc);
-                    cmdVal.Parameters.Add(":codcliente", c.codcliente);
-                    int count = Convert.ToInt32(cmdVal.ExecuteScalar());
+                    CommandType = CommandType.StoredProcedure,
+                    Transaction = tran
+                };
 
-                    if (count > 0)
-                    {
-                        MessageBox.Show("Ya existe cliente con este nro documento.", "Validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        return false;
-                    }
-                }
-                using var cmd = new OracleCommand(
-                    @"UPDATE CLIENTE SET
-                        nombre = :nombre,
-                        apellido = :apellido
-                     WHERE codcliente = :codcliente", cn);
+                cmd.Parameters.Add("p_codcliente", OracleDbType.Int32).Value = c.codcliente;
+                cmd.Parameters.Add("p_nrodoc", OracleDbType.Varchar2).Value = c.nrodoc;
+                cmd.Parameters.Add("p_nombre", OracleDbType.Varchar2).Value = c.nombre;
+                cmd.Parameters.Add("p_apellido", OracleDbType.Varchar2).Value = c.apellido;
 
-                cmd.Parameters.Add(":nombre", c.nombre);
-                cmd.Parameters.Add(":apellido", c.apellido);
-                cmd.Parameters.Add(":codcliente", c.codcliente);
-
-                cmd.Transaction = transaction;
                 cmd.ExecuteNonQuery();
 
-                transaction.Commit();
+                tran.Commit();
                 return true;
+            }
+            catch (OracleException ex)
+            {
+                MessageBox.Show( ex.Message, "Validación", MessageBoxButtons.OK,MessageBoxIcon.Warning);
+                return false;
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error al actualizar producto: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show( "Error al actualizar cliente: " + ex.Message,"Error",MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
         }
+
         public bool Eliminar(int codcliente)
         {
-            if (codcliente <= 0)
-            {
-                MessageBox.Show("Seleccione un cliente válido para eliminar.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return false;
-            }
-
             try
             {
                 using var cn = OracleConnectionFactory.GetConnection();
                 cn.Open();
 
-                using var transaction = cn.BeginTransaction();
-
-                using var cmd = new OracleCommand(
-                    "DELETE FROM CLIENTE WHERE CODCLIENTE = :codcliente", cn);
-                cmd.Parameters.Add(":codcliente", codcliente);
-                cmd.Transaction = transaction;
-
-                int filasAfectadas = cmd.ExecuteNonQuery();
-
-                if (filasAfectadas == 0)
+                using var tran = cn.BeginTransaction();
+                using var cmd = new OracleCommand("SP_ELIMINAR_CLIENTE", cn)
                 {
-                    MessageBox.Show("No se encontró el cliente a eliminar.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    transaction.Rollback();
-                    return false;
-                }
+                    CommandType = CommandType.StoredProcedure,
+                    Transaction = tran
+                };
+                cmd.Parameters.Add("p_codcliente", OracleDbType.Int32).Value = codcliente;
 
-                transaction.Commit();
+                cmd.ExecuteNonQuery();
+                tran.Commit();
+
                 return true;
+            }
+            catch (OracleException ex)
+            {
+                MessageBox.Show( ex.Message, "Error",MessageBoxButtons.OK, MessageBoxIcon.Warning );
+                return false;
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error al eliminar cliente: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Error al eliminar cliente: " + ex.Message,"Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
         }
+
     }
 }

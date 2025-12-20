@@ -26,5 +26,10 @@ namespace POSBasic
             FrmVentas frm = new FrmVentas();
             frm.Show();
         }
+
+        private void FrmInicio_Load(object sender, EventArgs e)
+        {
+
+        }
     }
 }

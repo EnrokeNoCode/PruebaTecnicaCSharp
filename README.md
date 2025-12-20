@@ -33,3 +33,25 @@
     <li>Subir el Código fuente a GITHUB con impresiones de pantalla</li>
     <li>La lógica y validaciones deben estar en la base de datos</li>
 </ul>
+<br>
+<h2>IMAGENES<h2>
+<p>Inicio</p>
+<p>
+  <img src="Img/MenuPrincipal.png" width="700">
+</p>
+<p>Cliente</p>
+<p>
+  <img src="Img/frmClientes.png" width="700">
+</p>
+<p>Producto</p>
+<p>
+  <img src="Img/frmProductos.png" width="700">
+</p>
+<p>Ventas</p>
+<p>
+  <img src="Img/frmVentas.png" width="700">
+</p>
+<p>Buscador</p>
+<p>
+  <img src="Img/frmBuscar.png" width="700">
+</p>

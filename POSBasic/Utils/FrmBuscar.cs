@@ -15,7 +15,7 @@ namespace POSBasic.Utils
         private string _campoExtra1;
         private string _campoExtra2;
         private string _campoExtra3;
-        private string _whereCond; // Condición extra para filtrar la consulta
+        private string _whereCond;
 
         // Constructor del form, se reciben los campos de la tabla a buscar
         public FrmBuscar(

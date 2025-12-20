@@ -71,94 +71,256 @@
   TABLESPACE "USERS" ;
 REM INSERTING into EXAMPLE_API.CLIENTE
 SET DEFINE OFF;
-Insert into EXAMPLE_API.CLIENTE (CODCLIENTE,NRODOC,NOMBRE,APELLIDO) values ('3','1219884','Jose','Torales');
 Insert into EXAMPLE_API.CLIENTE (CODCLIENTE,NRODOC,NOMBRE,APELLIDO) values ('2','4237259','Enroque','Torales');
+Insert into EXAMPLE_API.CLIENTE (CODCLIENTE,NRODOC,NOMBRE,APELLIDO) values ('21','5555666','Prueba','Prueba');
 REM INSERTING into EXAMPLE_API.PRODUCTO
 SET DEFINE OFF;
 Insert into EXAMPLE_API.PRODUCTO (CODPRODUCTO,CODIGOBARRA,DESPRODUCTO,PRECIOVENTA,STOCK) values ('41','23132123','prueba333','2500','10');
-Insert into EXAMPLE_API.PRODUCTO (CODPRODUCTO,CODIGOBARRA,DESPRODUCTO,PRECIOVENTA,STOCK) values ('21','12345','pruebax','15000','24');
+Insert into EXAMPLE_API.PRODUCTO (CODPRODUCTO,CODIGOBARRA,DESPRODUCTO,PRECIOVENTA,STOCK) values ('21','12345','pruebax','15000','27');
+Insert into EXAMPLE_API.PRODUCTO (CODPRODUCTO,CODIGOBARRA,DESPRODUCTO,PRECIOVENTA,STOCK) values ('61','21324141','Producto Nuevo','1500','3');
 REM INSERTING into EXAMPLE_API.VENTA
 SET DEFINE OFF;
-Insert into EXAMPLE_API.VENTA (CODVENTA,FECHAVENTA,NUMVENTA,CODCLIENTE,TOTALVENTA) values ('11',to_date('20/12/25','DD/MM/RR'),'001','2','90000');
+Insert into EXAMPLE_API.VENTA (CODVENTA,FECHAVENTA,NUMVENTA,CODCLIENTE,TOTALVENTA) values ('22',to_date('20/12/25','DD/MM/RR'),'005','2','48000');
+Insert into EXAMPLE_API.VENTA (CODVENTA,FECHAVENTA,NUMVENTA,CODCLIENTE,TOTALVENTA) values ('21',to_date('20/12/25','DD/MM/RR'),'55555','2','7500');
 REM INSERTING into EXAMPLE_API.VENTADET
 SET DEFINE OFF;
-Insert into EXAMPLE_API.VENTADET (CODVENTA,CODPRODUCTO,CANTIDADVENTA,PRECIOVENTA,TOTALLINEA,NUMLINEA) values ('11','21','6','15000','90000',null);
+Insert into EXAMPLE_API.VENTADET (CODVENTA,CODPRODUCTO,CANTIDADVENTA,PRECIOVENTA,TOTALLINEA,NUMLINEA) values ('22','21','3','15000','45000','1');
+Insert into EXAMPLE_API.VENTADET (CODVENTA,CODPRODUCTO,CANTIDADVENTA,PRECIOVENTA,TOTALLINEA,NUMLINEA) values ('22','61','2','1500','3000','2');
+Insert into EXAMPLE_API.VENTADET (CODVENTA,CODPRODUCTO,CANTIDADVENTA,PRECIOVENTA,TOTALLINEA,NUMLINEA) values ('21','61','5','1500','7500','1');
 --------------------------------------------------------
---  DDL for Procedure SP_ACTUALIZAR_DETALLE_VENTA
+--  DDL for Procedure SP_ACTUALIZAR_CLIENTE
 --------------------------------------------------------
 set define off;
 
-  CREATE OR REPLACE EDITIONABLE PROCEDURE "EXAMPLE_API"."SP_ACTUALIZAR_DETALLE_VENTA" (
-    p_codventa     IN NUMBER,
-    p_jsondetalle  IN CLOB
+  CREATE OR REPLACE EDITIONABLE PROCEDURE "EXAMPLE_API"."SP_ACTUALIZAR_CLIENTE" (
+    p_codcliente IN NUMBER,
+    p_nrodoc     IN VARCHAR2,
+    p_nombre     IN VARCHAR2,
+    p_apellido   IN VARCHAR2
+)
+AS
+    v_count NUMBER;
+BEGIN
+    -- Validar documento duplicado
+    SELECT COUNT(*)
+    INTO v_count
+    FROM cliente
+    WHERE nrodoc = p_nrodoc
+      AND codcliente <> p_codcliente;
+
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(
+            -20010,
+            'Ya existe un cliente con este número de documento'
+        );
+    END IF;
+
+    -- Actualizar cliente
+    UPDATE cliente
+    SET nombre   = p_nombre,
+        apellido = p_apellido,
+        nrodoc   = p_nrodoc
+    WHERE codcliente = p_codcliente;
+
+END SP_ACTUALIZAR_CLIENTE;
+
+/
+--------------------------------------------------------
+--  DDL for Procedure SP_ACTUALIZAR_PRODUCTO
+--------------------------------------------------------
+set define off;
+
+  CREATE OR REPLACE EDITIONABLE PROCEDURE "EXAMPLE_API"."SP_ACTUALIZAR_PRODUCTO" (
+    p_codproducto   IN NUMBER,
+    p_codigobarra   IN VARCHAR2,
+    p_desproducto   IN VARCHAR2,
+    p_precioventa  IN NUMBER,
+    p_stock         IN NUMBER
 )
 IS
-    v_codprod   NUMBER;
-    v_precio    NUMBER;
-    v_cantidad  NUMBER;
-    v_subtotal  NUMBER;
-    v_stock     NUMBER;
-    v_total     NUMBER := 0;
+    v_count NUMBER;
 BEGIN
-    -- Revertir stock de la venta anterior
-    FOR r_old IN (SELECT codproducto, cantidadventa FROM ventadet WHERE codventa = p_codventa) LOOP
-        UPDATE producto
-        SET stock = stock + r_old.cantidadventa
-        WHERE codproducto = r_old.codproducto;
-    END LOOP;
+    -- Validar código de barra duplicado
+    SELECT COUNT(*) INTO v_count
+    FROM producto
+    WHERE codigobarra = p_codigobarra
+      AND codproducto <> p_codproducto;
 
-    -- Eliminar detalle anterior
-    DELETE FROM ventadet WHERE codventa = p_codventa;
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(
+            -20030,
+            'Ya existe otro producto con ese código de barra'
+        );
+    END IF;
 
-    -- Recorrer JSON usando JSON_TABLE en un SELECT
-    FOR rec IN (
-        SELECT codproducto, precio, cantidad, subtotal
-        FROM JSON_TABLE(
-            p_jsondetalle,
-            '$[*]'
-            COLUMNS (
-                codproducto NUMBER PATH '$.codproducto',
-                precio      NUMBER PATH '$.precio',
-                cantidad    NUMBER PATH '$.cantidad',
-                subtotal    NUMBER PATH '$.subtotal'
-            )
-        )
-    )
-    LOOP
-        -- Validar stock
-        SELECT stock INTO v_stock
-        FROM producto
-        WHERE codproducto = rec.codproducto
-        FOR UPDATE;
+    -- Actualizar producto
+    UPDATE producto
+    SET desproducto  = p_desproducto,
+        precioventa  = p_precioventa,
+        stock        = p_stock
+    WHERE codproducto = p_codproducto;
 
-        IF v_stock < rec.cantidad THEN
-            RAISE_APPLICATION_ERROR(-20001, 'Stock insuficiente para el producto ' || rec.codproducto);
-        END IF;
+    IF SQL%ROWCOUNT = 0 THEN
+        RAISE_APPLICATION_ERROR(
+            -20031,
+            'No se encontró el producto a actualizar'
+        );
+    END IF;
+END;
 
-        -- Insertar detalle
-        INSERT INTO ventadet(codventa, codproducto, precioventa, cantidadventa, totallinea)
-        VALUES (p_codventa, rec.codproducto, rec.precio, rec.cantidad, rec.subtotal);
+/
+--------------------------------------------------------
+--  DDL for Procedure SP_ACTUALIZAR_VENTA_DET
+--------------------------------------------------------
+set define off;
 
-        -- Descontar stock
-        UPDATE producto
-        SET stock = stock - rec.cantidad
-        WHERE codproducto = rec.codproducto;
+  CREATE OR REPLACE EDITIONABLE PROCEDURE "EXAMPLE_API"."SP_ACTUALIZAR_VENTA_DET" (
+    p_codventa    IN NUMBER,
+    p_codproducto IN NUMBER,
+    p_cantidad    IN NUMBER,
+    p_precio      IN NUMBER
+)
+AS
+    v_stock NUMBER;
+    v_maxlinea NUMBER;
+BEGIN
+    -- Bloquea producto y valida stock
+    SELECT stock
+    INTO v_stock
+    FROM producto
+    WHERE codproducto = p_codproducto
+    FOR UPDATE;
 
-        -- Acumular total
-        v_total := v_total + rec.subtotal;
-    END LOOP;
+    IF p_cantidad > v_stock THEN
+        RAISE_APPLICATION_ERROR(
+            -20001,
+            'Stock insuficiente para el producto ' || p_codproducto ||
+            '. Stock disponible: ' || v_stock
+        );
+    END IF;
 
-    -- Actualizar total de la venta en la cabecera
-    UPDATE venta
-    SET totalventa = v_total
+    -- Número de línea
+    SELECT NVL(MAX(numlinea), 0) + 1
+    INTO v_maxlinea
+    FROM ventadet
     WHERE codventa = p_codventa;
 
-    COMMIT;
+    -- Insertar detalle
+    INSERT INTO ventadet (
+        codventa,
+        codproducto,
+        cantidadventa,
+        precioventa,
+        totallinea,
+        numlinea
+    )
+    VALUES (
+        p_codventa,
+        p_codproducto,
+        p_cantidad,
+        p_precio,
+        p_cantidad * p_precio,
+        v_maxlinea
+    );
 
-EXCEPTION
-    WHEN OTHERS THEN
-        ROLLBACK;
-        RAISE;
+    -- Descontar stock
+    UPDATE producto
+    SET stock = stock - p_cantidad
+    WHERE codproducto = p_codproducto;
+
+    --Recalcular total desde el detalle
+    UPDATE venta
+    SET totalventa = (
+        SELECT NVL(SUM(totallinea), 0)
+        FROM ventadet
+        WHERE codventa = p_codventa
+    )
+    WHERE codventa = p_codventa;
+END SP_ACTUALIZAR_VENTA_DET;
+
+/
+--------------------------------------------------------
+--  DDL for Procedure SP_ELIMINAR_CLIENTE
+--------------------------------------------------------
+set define off;
+
+  CREATE OR REPLACE EDITIONABLE PROCEDURE "EXAMPLE_API"."SP_ELIMINAR_CLIENTE" (
+    p_codcliente IN NUMBER
+)
+AS
+    v_count NUMBER;
+BEGIN
+    -- Validar que exista el cliente
+    SELECT COUNT(*)
+    INTO v_count
+    FROM cliente
+    WHERE codcliente = p_codcliente;
+
+    IF v_count = 0 THEN
+        RAISE_APPLICATION_ERROR(
+            -20020,
+            'No se encontró el cliente a eliminar'
+        );
+    END IF;
+
+    -- Validar que no tenga ventas asociadas
+    SELECT COUNT(*)
+    INTO v_count
+    FROM venta
+    WHERE codcliente = p_codcliente;
+
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(
+            -20021,
+            'No se puede eliminar el cliente porque tiene ventas asociadas'
+        );
+    END IF;
+
+    -- Eliminar cliente
+    DELETE FROM cliente
+    WHERE codcliente = p_codcliente;
+
+END SP_ELIMINAR_CLIENTE;
+
+/
+--------------------------------------------------------
+--  DDL for Procedure SP_ELIMINAR_PRODUCTO
+--------------------------------------------------------
+set define off;
+
+  CREATE OR REPLACE EDITIONABLE PROCEDURE "EXAMPLE_API"."SP_ELIMINAR_PRODUCTO" (
+    p_codproducto IN NUMBER
+)
+IS
+    v_count NUMBER;
+BEGIN
+    -- Validar existencia
+    SELECT COUNT(*) INTO v_count
+    FROM producto
+    WHERE codproducto = p_codproducto;
+
+    IF v_count = 0 THEN
+        RAISE_APPLICATION_ERROR(
+            -20040,
+            'No se encontró el producto a eliminar'
+        );
+    END IF;
+
+    -- Validar que no esté usado en ventas
+    SELECT COUNT(*) INTO v_count
+    FROM ventadet
+    WHERE codproducto = p_codproducto;
+
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(
+            -20041,
+            'No se puede eliminar el producto porque tiene ventas asociadas'
+        );
+    END IF;
+
+    -- Eliminar producto
+    DELETE FROM producto
+    WHERE codproducto = p_codproducto;
 END;
 
 /
@@ -327,6 +489,33 @@ BEGIN
     SET stock = stock - p_cantidad
     WHERE codproducto = p_codproducto;
 END SP_INSERTAR_VENTA_DET;
+
+/
+--------------------------------------------------------
+--  DDL for Procedure SP_LIMPIAR_DETALLE_VENTA
+--------------------------------------------------------
+set define off;
+
+  CREATE OR REPLACE EDITIONABLE PROCEDURE "EXAMPLE_API"."SP_LIMPIAR_DETALLE_VENTA" (
+    p_codventa IN NUMBER
+)
+AS
+BEGIN
+    -- Devolver stock
+    FOR r IN (
+        SELECT codproducto, cantidadventa
+        FROM ventadet
+        WHERE codventa = p_codventa
+    ) LOOP
+        UPDATE producto
+        SET stock = stock + r.cantidadventa
+        WHERE codproducto = r.codproducto;
+    END LOOP;
+
+    -- Borrar detalle
+    DELETE FROM ventadet
+    WHERE codventa = p_codventa;
+END SP_LIMPIAR_DETALLE_VENTA;
 
 /
 --------------------------------------------------------

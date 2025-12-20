@@ -76,6 +76,7 @@
             Name = "FrmInicio";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "Menu";
+            Load += FrmInicio_Load;
             menuStrip1.ResumeLayout(false);
             menuStrip1.PerformLayout();
             ResumeLayout(false);
