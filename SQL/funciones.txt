@@ -1,0 +1,215 @@
+CREATE OR REPLACE PROCEDURE sp_insertar_cliente(
+    p_nrodoc IN CLIENTE.NRODOC%TYPE,
+    p_nombre IN CLIENTE.NOMBRE%TYPE,
+    p_apellido IN CLIENTE.APELLIDO%TYPE
+)
+IS
+    v_count NUMBER;
+BEGIN
+    -- Validación: que no exista un cliente con el mismo nro de documento
+    SELECT COUNT(*) INTO v_count
+    FROM CLIENTE
+    WHERE NRODOC = p_nrodoc;
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Ya existe un cliente con el nro documento a registrar.');
+    END IF;
+
+    -- Validación: de los campos de nombre y apellido
+    IF TRIM(p_nombre) IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20002, 'El nombre del cliente no puede estar vacío.');
+    END IF;
+    
+    IF TRIM(p_apellido) IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20002, 'El nombre del cliente no puede estar vacío.');
+    END IF;
+
+    INSERT INTO CLIENTE (nrodoc, nombre, apellido)
+    VALUES (p_nrodoc, p_nombre, p_apellido);    
+    COMMIT;
+END sp_insertar_cliente;
+
+
+CREATE OR REPLACE PROCEDURE sp_insertar_producto(
+    p_codigobarra IN PRODUCTO.CODIGOBARRA%TYPE,
+    p_desproducto IN PRODUCTO.DESPRODUCTO%TYPE,
+    p_precioventa IN PRODUCTO.PRECIOVENTA%TYPE,
+    p_stock IN PRODUCTO.STOCK%TYPE
+)
+IS
+    v_count NUMBER;
+BEGIN
+    -- Validación: que no exista el código de barra
+    SELECT COUNT(*) INTO v_count
+    FROM PRODUCTO
+    WHERE CODIGOBARRA = p_codigobarra;
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Ya existe un producto con ese código de barra.');
+    END IF;
+
+    -- Validación: descripción no vacía
+    IF TRIM(p_desproducto) IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20002, 'La descripción del producto no puede estar vacía.');
+    END IF;
+
+    INSERT INTO PRODUCTO (CODIGOBARRA, DESPRODUCTO, PRECIOVENTA, STOCK)
+    VALUES (p_codigobarra, p_desproducto, p_precioventa, p_stock);    
+    COMMIT;
+END sp_insertar_producto;
+
+CREATE OR REPLACE PROCEDURE SP_INSERTAR_VENTA_CAB(
+    p_numventa IN VARCHAR2,
+    p_codcliente IN NUMBER,
+    p_codventa_out OUT NUMBER
+)
+AS
+BEGIN
+    INSERT INTO venta(numventa, codcliente, totalventa)
+    VALUES(p_numventa, p_codcliente, 0)
+    RETURNING codventa INTO p_codventa_out;
+END SP_INSERTAR_VENTA_CAB;
+/
+
+
+CREATE OR REPLACE PROCEDURE SP_INSERTAR_VENTA_DET(
+    p_codventa IN NUMBER,
+    p_codproducto IN NUMBER,
+    p_cantidad IN NUMBER,
+    p_precio IN NUMBER
+)
+AS
+    v_stock NUMBER;
+    v_maxlinea NUMBER;
+BEGIN
+    -- Bloquea el producto para evitar conflictos y valida stock
+    SELECT stock INTO v_stock
+    FROM producto
+    WHERE codproducto = p_codproducto
+    FOR UPDATE;
+
+    IF p_cantidad > v_stock THEN
+        RAISE_APPLICATION_ERROR(-20001, 
+            'No hay stock suficiente para el producto ' || p_codproducto || 
+            '. Stock disponible: ' || v_stock);
+    END IF;
+
+    -- Obtener el siguiente número de línea
+    SELECT NVL(MAX(numlinea), 0) + 1 INTO v_maxlinea
+    FROM ventadet
+    WHERE codventa = p_codventa;
+
+    -- Insertar detalle
+    INSERT INTO ventadet(codventa, codproducto, cantidadventa, precioventa, totallinea, numlinea)
+    VALUES(p_codventa, p_codproducto, p_cantidad, p_precio, p_cantidad * p_precio, v_maxlinea);
+
+    -- Descontar stock
+    UPDATE producto
+    SET stock = stock - p_cantidad
+    WHERE codproducto = p_codproducto;
+END SP_INSERTAR_VENTA_DET;
+/
+
+CREATE OR REPLACE PROCEDURE SP_ELIMINAR_VENTA(
+    p_codventa IN NUMBER
+)
+AS
+BEGIN
+    --Devolver stock de los productos
+    FOR rec IN (
+        SELECT codproducto, cantidadventa
+        FROM ventadet
+        WHERE codventa = p_codventa
+    ) LOOP
+        UPDATE producto
+        SET stock = stock + rec.cantidadventa
+        WHERE codproducto = rec.codproducto;
+    END LOOP;
+
+    --Eliminar detalle
+    DELETE FROM ventadet
+    WHERE codventa = p_codventa;
+
+    --Eliminar cabecera
+    DELETE FROM venta
+    WHERE codventa = p_codventa;
+
+    COMMIT;
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        RAISE;
+END SP_ELIMINAR_VENTA;
+/
+
+CREATE OR REPLACE PROCEDURE SP_ACTUALIZAR_DETALLE_VENTA(
+    p_codventa     IN NUMBER,
+    p_jsondetalle  IN CLOB
+)
+IS
+    v_codprod   NUMBER;
+    v_precio    NUMBER;
+    v_cantidad  NUMBER;
+    v_subtotal  NUMBER;
+    v_stock     NUMBER;
+    v_total     NUMBER := 0;
+BEGIN
+    -- Revertir stock de la venta anterior
+    FOR r_old IN (SELECT codproducto, cantidadventa FROM ventadet WHERE codventa = p_codventa) LOOP
+        UPDATE producto
+        SET stock = stock + r_old.cantidadventa
+        WHERE codproducto = r_old.codproducto;
+    END LOOP;
+
+    -- Eliminar detalle anterior
+    DELETE FROM ventadet WHERE codventa = p_codventa;
+
+    -- Recorrer JSON usando JSON_TABLE en un SELECT
+    FOR rec IN (
+        SELECT codproducto, precio, cantidad, subtotal
+        FROM JSON_TABLE(
+            p_jsondetalle,
+            '$[*]'
+            COLUMNS (
+                codproducto NUMBER PATH '$.codproducto',
+                precio      NUMBER PATH '$.precio',
+                cantidad    NUMBER PATH '$.cantidad',
+                subtotal    NUMBER PATH '$.subtotal'
+            )
+        )
+    )
+    LOOP
+        -- Validar stock
+        SELECT stock INTO v_stock
+        FROM producto
+        WHERE codproducto = rec.codproducto
+        FOR UPDATE;
+
+        IF v_stock < rec.cantidad THEN
+            RAISE_APPLICATION_ERROR(-20001, 'Stock insuficiente para el producto ' || rec.codproducto);
+        END IF;
+
+        -- Insertar detalle
+        INSERT INTO ventadet(codventa, codproducto, precioventa, cantidadventa, totallinea)
+        VALUES (p_codventa, rec.codproducto, rec.precio, rec.cantidad, rec.subtotal);
+
+        -- Descontar stock
+        UPDATE producto
+        SET stock = stock - rec.cantidad
+        WHERE codproducto = rec.codproducto;
+
+        -- Acumular total
+        v_total := v_total + rec.subtotal;
+    END LOOP;
+
+    -- Actualizar total de la venta en la cabecera
+    UPDATE venta
+    SET totalventa = v_total
+    WHERE codventa = p_codventa;
+
+    COMMIT;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        RAISE;
+END;
+/
