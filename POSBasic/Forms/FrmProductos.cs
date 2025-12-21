@@ -1,14 +1,16 @@
 ﻿using POSBasic.Models;
 using POSBasic.Services;
+using POSBasic.Services.Interfaces;
 
 namespace POSBasic.Forms
 {
     public partial class FrmProductos : Form
     {
-        private ProductoService _service = new ProductoService();
-        public FrmProductos()
+        private readonly IProductoService _service;
+        public FrmProductos(IProductoService service)
         {
             InitializeComponent();
+            _service = service;
             InhabilitarCampos();
             txtCodProducto.Visible = false;
             txtDescripcion.KeyPress += Txt_KeyPress_Enter;
@@ -117,7 +119,7 @@ namespace POSBasic.Forms
             var resultado = MessageBox.Show("¿Desea eliminar el producto seleccionado?", "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (resultado != DialogResult.Yes) return;
 
-            if (_service.Eliminar((int)txtCodProducto.Tag))
+            if (_service.Eliminar((int)txtCodProducto.Tag, out string error))
             {
                 MessageBox.Show("Producto eliminado correctamente.", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 dgvProductos.DataSource = _service.Listar();
@@ -125,6 +127,10 @@ namespace POSBasic.Forms
                 LimpiarForm();
                 InhabilitarCampos();
                 ValidarBotonesInicio();
+            }
+            else
+            {
+                MessageBox.Show("Error al eliminar: " + error, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

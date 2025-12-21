@@ -1,4 +1,4 @@
-CREATE OR REPLACE PROCEDURE sp_insertar_cliente(
+create or replace PROCEDURE sp_insertar_cliente(
     p_nrodoc IN CLIENTE.NRODOC%TYPE,
     p_nombre IN CLIENTE.NOMBRE%TYPE,
     p_apellido IN CLIENTE.APELLIDO%TYPE
@@ -18,7 +18,7 @@ BEGIN
     IF TRIM(p_nombre) IS NULL THEN
         RAISE_APPLICATION_ERROR(-20002, 'El nombre del cliente no puede estar vacío.');
     END IF;
-    
+
     IF TRIM(p_apellido) IS NULL THEN
         RAISE_APPLICATION_ERROR(-20002, 'El nombre del cliente no puede estar vacío.');
     END IF;
@@ -28,7 +28,8 @@ BEGIN
     COMMIT;
 END sp_insertar_cliente;
 
-CREATE OR REPLACE PROCEDURE SP_ACTUALIZAR_CLIENTE (
+
+create or replace PROCEDURE SP_ACTUALIZAR_CLIENTE (
     p_codcliente IN NUMBER,
     p_nrodoc     IN VARCHAR2,
     p_nombre     IN VARCHAR2,
@@ -59,9 +60,8 @@ BEGIN
     WHERE codcliente = p_codcliente;
 
 END SP_ACTUALIZAR_CLIENTE;
-/
 
-CREATE OR REPLACE PROCEDURE SP_ELIMINAR_CLIENTE (
+create or replace PROCEDURE SP_ELIMINAR_CLIENTE (
     p_codcliente IN NUMBER
 )
 AS
@@ -98,10 +98,45 @@ BEGIN
     WHERE codcliente = p_codcliente;
 
 END SP_ELIMINAR_CLIENTE;
-/
+
+create or replace PROCEDURE SP_LISTAR_CLIENTES (
+    p_cursor OUT SYS_REFCURSOR
+)
+AS
+BEGIN
+    OPEN p_cursor FOR
+        SELECT codcliente, nrodoc, nombre, apellido FROM cliente order by codcliente;
+END;
 
 
-CREATE OR REPLACE PROCEDURE SP_ACTUALIZAR_PRODUCTO (
+create or replace PROCEDURE sp_insertar_producto(
+    p_codigobarra IN PRODUCTO.CODIGOBARRA%TYPE,
+    p_desproducto IN PRODUCTO.DESPRODUCTO%TYPE,
+    p_precioventa IN PRODUCTO.PRECIOVENTA%TYPE,
+    p_stock IN PRODUCTO.STOCK%TYPE
+)
+IS
+    v_count NUMBER;
+BEGIN
+    -- Validación: que no exista el código de barra
+    SELECT COUNT(*) INTO v_count
+    FROM PRODUCTO
+    WHERE CODIGOBARRA = p_codigobarra;
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Ya existe un producto con ese código de barra.');
+    END IF;
+
+    -- Validación: descripción no vacía
+    IF TRIM(p_desproducto) IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20002, 'La descripción del producto no puede estar vacía.');
+    END IF;
+
+    INSERT INTO PRODUCTO (CODIGOBARRA, DESPRODUCTO, PRECIOVENTA, STOCK)
+    VALUES (p_codigobarra, p_desproducto, p_precioventa, p_stock);    
+    COMMIT;
+END sp_insertar_producto;
+
+create or replace PROCEDURE SP_ACTUALIZAR_PRODUCTO (
     p_codproducto   IN NUMBER,
     p_codigobarra   IN VARCHAR2,
     p_desproducto   IN VARCHAR2,
@@ -138,9 +173,8 @@ BEGIN
         );
     END IF;
 END;
-/
 
-CREATE OR REPLACE PROCEDURE SP_ELIMINAR_PRODUCTO (
+create or replace PROCEDURE SP_ELIMINAR_PRODUCTO (
     p_codproducto IN NUMBER
 )
 IS
@@ -174,38 +208,18 @@ BEGIN
     DELETE FROM producto
     WHERE codproducto = p_codproducto;
 END;
-/
 
-
-
-CREATE OR REPLACE PROCEDURE sp_insertar_producto(
-    p_codigobarra IN PRODUCTO.CODIGOBARRA%TYPE,
-    p_desproducto IN PRODUCTO.DESPRODUCTO%TYPE,
-    p_precioventa IN PRODUCTO.PRECIOVENTA%TYPE,
-    p_stock IN PRODUCTO.STOCK%TYPE
+create or replace PROCEDURE SP_LISTAR_PRODUCTOS (
+    p_cursor OUT SYS_REFCURSOR
 )
-IS
-    v_count NUMBER;
+AS
 BEGIN
-    -- Validación: que no exista el código de barra
-    SELECT COUNT(*) INTO v_count
-    FROM PRODUCTO
-    WHERE CODIGOBARRA = p_codigobarra;
-    IF v_count > 0 THEN
-        RAISE_APPLICATION_ERROR(-20001, 'Ya existe un producto con ese código de barra.');
-    END IF;
+    OPEN p_cursor FOR
+        SELECT codproducto, codigobarra, desproducto, precioventa, stock FROM PRODUCTO order by codproducto;
+END;
 
-    -- Validación: descripción no vacía
-    IF TRIM(p_desproducto) IS NULL THEN
-        RAISE_APPLICATION_ERROR(-20002, 'La descripción del producto no puede estar vacía.');
-    END IF;
 
-    INSERT INTO PRODUCTO (CODIGOBARRA, DESPRODUCTO, PRECIOVENTA, STOCK)
-    VALUES (p_codigobarra, p_desproducto, p_precioventa, p_stock);    
-    COMMIT;
-END sp_insertar_producto;
-
-CREATE OR REPLACE PROCEDURE SP_INSERTAR_VENTA_CAB(
+create or replace PROCEDURE SP_INSERTAR_VENTA_CAB(
     p_numventa IN VARCHAR2,
     p_codcliente IN NUMBER,
     p_codventa_out OUT NUMBER
@@ -216,10 +230,8 @@ BEGIN
     VALUES(p_numventa, p_codcliente, 0)
     RETURNING codventa INTO p_codventa_out;
 END SP_INSERTAR_VENTA_CAB;
-/
 
-
-CREATE OR REPLACE PROCEDURE SP_INSERTAR_VENTA_DET(
+create or replace PROCEDURE SP_INSERTAR_VENTA_DET(
     p_codventa IN NUMBER,
     p_codproducto IN NUMBER,
     p_cantidad IN NUMBER,
@@ -254,10 +266,14 @@ BEGIN
     UPDATE producto
     SET stock = stock - p_cantidad
     WHERE codproducto = p_codproducto;
-END SP_INSERTAR_VENTA_DET;
-/
 
-CREATE OR REPLACE PROCEDURE SP_ELIMINAR_VENTA(
+    -- Actualizar total de la venta
+    UPDATE venta
+    SET totalventa = (SELECT NVL(SUM(totallinea), 0) FROM ventadet WHERE codventa = p_codventa)
+    WHERE codventa = p_codventa;
+END SP_INSERTAR_VENTA_DET;
+
+create or replace PROCEDURE SP_ELIMINAR_VENTA(
     p_codventa IN NUMBER
 )
 AS
@@ -287,83 +303,9 @@ EXCEPTION
         ROLLBACK;
         RAISE;
 END SP_ELIMINAR_VENTA;
-/
 
-CREATE OR REPLACE PROCEDURE SP_ACTUALIZAR_DETALLE_VENTA(
-    p_codventa     IN NUMBER,
-    p_jsondetalle  IN CLOB
-)
-IS
-    v_codprod   NUMBER;
-    v_precio    NUMBER;
-    v_cantidad  NUMBER;
-    v_subtotal  NUMBER;
-    v_stock     NUMBER;
-    v_total     NUMBER := 0;
-BEGIN
-    -- Revertir stock de la venta anterior
-    FOR r_old IN (SELECT codproducto, cantidadventa FROM ventadet WHERE codventa = p_codventa) LOOP
-        UPDATE producto
-        SET stock = stock + r_old.cantidadventa
-        WHERE codproducto = r_old.codproducto;
-    END LOOP;
 
-    -- Eliminar detalle anterior
-    DELETE FROM ventadet WHERE codventa = p_codventa;
-
-    -- Recorrer JSON usando JSON_TABLE en un SELECT
-    FOR rec IN (
-        SELECT codproducto, precio, cantidad, subtotal
-        FROM JSON_TABLE(
-            p_jsondetalle,
-            '$[*]'
-            COLUMNS (
-                codproducto NUMBER PATH '$.codproducto',
-                precio      NUMBER PATH '$.precio',
-                cantidad    NUMBER PATH '$.cantidad',
-                subtotal    NUMBER PATH '$.subtotal'
-            )
-        )
-    )
-    LOOP
-        -- Validar stock
-        SELECT stock INTO v_stock
-        FROM producto
-        WHERE codproducto = rec.codproducto
-        FOR UPDATE;
-
-        IF v_stock < rec.cantidad THEN
-            RAISE_APPLICATION_ERROR(-20001, 'Stock insuficiente para el producto ' || rec.codproducto);
-        END IF;
-
-        -- Insertar detalle
-        INSERT INTO ventadet(codventa, codproducto, precioventa, cantidadventa, totallinea)
-        VALUES (p_codventa, rec.codproducto, rec.precio, rec.cantidad, rec.subtotal);
-
-        -- Descontar stock
-        UPDATE producto
-        SET stock = stock - rec.cantidad
-        WHERE codproducto = rec.codproducto;
-
-        -- Acumular total
-        v_total := v_total + rec.subtotal;
-    END LOOP;
-
-    -- Actualizar total de la venta en la cabecera
-    UPDATE venta
-    SET totalventa = v_total
-    WHERE codventa = p_codventa;
-
-    COMMIT;
-
-EXCEPTION
-    WHEN OTHERS THEN
-        ROLLBACK;
-        RAISE;
-END;
-/
-
-CREATE OR REPLACE PROCEDURE SP_LIMPIAR_DETALLE_VENTA (
+create or replace PROCEDURE SP_LIMPIAR_DETALLE_VENTA (
     p_codventa IN NUMBER
 )
 AS
@@ -383,9 +325,8 @@ BEGIN
     DELETE FROM ventadet
     WHERE codventa = p_codventa;
 END SP_LIMPIAR_DETALLE_VENTA;
-/
 
-CREATE OR REPLACE PROCEDURE SP_ACTUALIZAR_VENTA_DET(
+create or replace PROCEDURE SP_ACTUALIZAR_VENTA_DET(
     p_codventa    IN NUMBER,
     p_codproducto IN NUMBER,
     p_cantidad    IN NUMBER,
@@ -448,4 +389,53 @@ BEGIN
     )
     WHERE codventa = p_codventa;
 END SP_ACTUALIZAR_VENTA_DET;
-/
+
+create or replace PROCEDURE SP_LISTAR_COD_VENTAS (
+    p_cursor OUT SYS_REFCURSOR
+)
+AS
+BEGIN
+    OPEN p_cursor FOR
+        SELECT codventa
+        FROM venta
+        ORDER BY codventa DESC;
+END;
+
+create or replace PROCEDURE SP_OBTENER_CABECERA_VENTA (
+    p_codventa IN NUMBER,
+    p_cursor   OUT SYS_REFCURSOR
+)
+AS
+BEGIN
+    OPEN p_cursor FOR
+        SELECT v.codventa,
+               v.fechaventa,
+               v.numventa,
+               v.codcliente,
+               c.nrodoc,
+               c.nombre || ', ' || c.apellido AS cliente,
+               v.totalventa
+        FROM venta v
+        JOIN cliente c ON c.codcliente = v.codcliente
+        WHERE v.codventa = p_codventa;
+END;
+
+
+create or replace PROCEDURE SP_OBTENER_DETALLE_VENTA (
+    p_codventa IN NUMBER,
+    p_cursor   OUT SYS_REFCURSOR
+)
+AS
+BEGIN
+    OPEN p_cursor FOR
+        SELECT d.codproducto,
+               p.codigobarra,
+               p.desproducto,
+               d.cantidadventa AS cantidad,
+               d.precioventa   AS precio,
+               d.totallinea    AS subtotal
+        FROM ventadet d
+        JOIN producto p ON p.codproducto = d.codproducto
+        WHERE d.codventa = p_codventa
+        ORDER BY d.numlinea;
+END;

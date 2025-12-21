@@ -1,116 +1,130 @@
-﻿using Newtonsoft.Json;
-using Oracle.ManagedDataAccess.Client;
-using POSBasic.Database;
+﻿using Oracle.ManagedDataAccess.Client;
+using Oracle.ManagedDataAccess.Types;
+using POSBasic.Persistence.Interface;
+using POSBasic.Services.Interfaces;
 using System.Data;
 
 namespace POSBasic.Services
 {
-    public class VentaService
+    public class VentaService : IVentaService
     {
-        //Recuperamos los codventas para poder realizar el recorrido en la pantalla de ventas
+        private readonly IConnectionFactory _connectionFactory;
+
+        public VentaService(IConnectionFactory connectionFactory)
+        {
+            _connectionFactory = connectionFactory;
+        }
         public DataTable ListarCodVentas()
         {
             var dt = new DataTable();
             try
             {
-                using var cn = OracleConnectionFactory.GetConnection();
+                using var cn = _connectionFactory.GetConnection();
                 cn.Open();
 
-                using var da = new OracleDataAdapter( @"SELECT codventa FROM venta ORDER BY codventa DESC", cn);
+                using var cmd = new OracleCommand("SP_LISTAR_COD_VENTAS", cn)
+                {
+                    CommandType = CommandType.StoredProcedure
+                };
+
+                cmd.Parameters.Add("p_cursor", OracleDbType.RefCursor)
+                             .Direction = ParameterDirection.Output;
+
+                using var da = new OracleDataAdapter(cmd);
                 da.Fill(dt);
+
+                return dt;
             }
             catch (OracleException ex)
             {
-                throw new Exception("Error al listar ventas: " + ex.Message);
+                throw new Exception("Error al listar ventas.", ex);
             }
-            return dt;
         }
-        //Funcion para Mostrar Ventas cuando recorremos el formulario
+
         public DataTable ObtenerCabecera(int codventa)
         {
             var dt = new DataTable();
-
             try
             {
-                using var cn = OracleConnectionFactory.GetConnection();
+                using var cn = _connectionFactory.GetConnection();
                 cn.Open();
-                using var da = new OracleDataAdapter(
-                    @"SELECT v.codventa,
-                     v.fechaventa,
-                     v.numventa,
-                     v.codcliente,
-                     c.nrodoc,
-                     c.nombre || ', ' || c.apellido AS cliente,
-                     v.totalventa
-                     FROM venta v
-                     JOIN cliente c ON c.codcliente = v.codcliente
-                     WHERE v.codventa = :id", cn);
-                da.SelectCommand.Parameters.Add(":id", codventa);
+
+                using var cmd = new OracleCommand("SP_OBTENER_CABECERA_VENTA", cn)
+                {
+                    CommandType = CommandType.StoredProcedure
+                };
+
+                cmd.Parameters.Add("p_codventa", OracleDbType.Int32).Value = codventa;
+                cmd.Parameters.Add("p_cursor", OracleDbType.RefCursor)
+                             .Direction = ParameterDirection.Output;
+
+                using var da = new OracleDataAdapter(cmd);
                 da.Fill(dt);
+
+                return dt;
             }
             catch (OracleException ex)
             {
-                throw new Exception($"Error al obtener cabecera de la venta ({codventa}): {ex.Message}" );
+                throw new Exception($"Error al obtener cabecera de la venta {codventa}.", ex);
             }
-            return dt;
         }
         public DataTable ObtenerDetalle(int codventa)
         {
             var dt = new DataTable();
             try
             {
-                using var cn = OracleConnectionFactory.GetConnection();
-                using var da = new OracleDataAdapter(@"
-                        SELECT d.codproducto, p.codigobarra, p.desproducto,
-                               d.cantidadventa AS cantidad, d.precioventa AS precio,
-                               d.totallinea AS subtotal
-                        FROM ventadet d
-                        JOIN producto p ON p.codproducto = d.codproducto
-                        WHERE d.codventa = :id
-                        ORDER BY d.numlinea", cn);
-
-                da.SelectCommand.Parameters.Add(":id", OracleDbType.Int32).Value = codventa;
-
+                using var cn = _connectionFactory.GetConnection();
                 cn.Open();
+
+                using var cmd = new OracleCommand("SP_OBTENER_DETALLE_VENTA", cn)
+                {
+                    CommandType = CommandType.StoredProcedure
+                };
+
+                cmd.Parameters.Add("p_codventa", OracleDbType.Int32).Value = codventa;
+                cmd.Parameters.Add("p_cursor", OracleDbType.RefCursor)
+                             .Direction = ParameterDirection.Output;
+
+                using var da = new OracleDataAdapter(cmd);
                 da.Fill(dt);
+
+                return dt;
             }
             catch (OracleException ex)
             {
-                throw new Exception("Error al consultar el detalle en la base de datos: " + ex.Message);
+                throw new Exception("Error al obtener detalle de la venta.", ex);
             }
-            return dt;
         }
-
         public int InsertarVenta(string numventa, int codcliente, DataTable dtDetalle)
         {
-            int codventa = 0;
-
-            using var cn = OracleConnectionFactory.GetConnection();
+            using var cn = _connectionFactory.GetConnection();
             cn.Open();
             using var tran = cn.BeginTransaction();
-
             try
             {
+                int codventa;
                 using (var cmdCab = new OracleCommand("SP_INSERTAR_VENTA_CAB", cn))
                 {
                     cmdCab.CommandType = CommandType.StoredProcedure;
                     cmdCab.Transaction = tran;
 
-                    cmdCab.Parameters.Add("p_numventa", OracleDbType.Varchar2).Value = numventa;
-                    cmdCab.Parameters.Add("p_codcliente", OracleDbType.Int32).Value = codcliente;
-                    var pOut = new OracleParameter("p_codventa_out", OracleDbType.Int32, ParameterDirection.Output);
-                    cmdCab.Parameters.Add(pOut);
+                    cmdCab.Parameters.Add("p_numventa", numventa);
+                    cmdCab.Parameters.Add("p_codcliente", codcliente);
 
+                    var pOut = new OracleParameter("p_codventa_out", OracleDbType.Int32)
+                    {
+                        Direction = ParameterDirection.Output
+                    };
+                    cmdCab.Parameters.Add(pOut);
                     cmdCab.ExecuteNonQuery();
-                    codventa = Convert.ToInt32(pOut.Value.ToString());
+                    codventa = ((OracleDecimal)pOut.Value).ToInt32();
                 }
-                decimal totalVenta = 0;
                 foreach (DataRow row in dtDetalle.Rows)
                 {
+                    // Convertimos de forma segura
                     int codProducto = Convert.ToInt32(row["CodProducto"]);
                     decimal cantidad = Convert.ToDecimal(row["Cantidad"]);
                     decimal precio = Convert.ToDecimal(row["Precio"]);
-                    decimal subtotal = cantidad * precio;
 
                     using var cmdDet = new OracleCommand("SP_INSERTAR_VENTA_DET", cn)
                     {
@@ -118,35 +132,28 @@ namespace POSBasic.Services
                         Transaction = tran
                     };
 
-                    cmdDet.Parameters.Add("p_codventa", OracleDbType.Int32).Value = codventa;
-                    cmdDet.Parameters.Add("p_codproducto", OracleDbType.Int32).Value = codProducto;
-                    cmdDet.Parameters.Add("p_cantidad", OracleDbType.Decimal).Value = cantidad;
-                    cmdDet.Parameters.Add("p_precio", OracleDbType.Decimal).Value = precio;
+                    cmdDet.Parameters.Add("p_codventa", codventa);
+                    cmdDet.Parameters.Add("p_codproducto", codProducto);
+                    cmdDet.Parameters.Add("p_cantidad", cantidad);
+                    cmdDet.Parameters.Add("p_precio", precio);
 
                     cmdDet.ExecuteNonQuery();
-
-                    totalVenta += subtotal;
                 }
-                using var cmdTotal = new OracleCommand("UPDATE venta SET totalventa = :total WHERE codventa = :codventa", cn);
-                cmdTotal.Transaction = tran;
-                cmdTotal.Parameters.Add("total", OracleDbType.Decimal).Value = totalVenta;
-                cmdTotal.Parameters.Add("codventa", OracleDbType.Int32).Value = codventa;
-                cmdTotal.ExecuteNonQuery();
                 tran.Commit();
+
+                return codventa;
             }
             catch (Exception ex)
             {
                 tran.Rollback();
-                MessageBox.Show("Error al insertar la venta: " + ex.Message);
-                return 0;
+                throw new Exception("Error al insertar la venta.", ex);
             }
-            return codventa;
         }
+
         public void ActualizarDetalleVenta(int codventa, DataTable dtDetalle)
         {
-            using var cn = OracleConnectionFactory.GetConnection();
+            using var cn = _connectionFactory.GetConnection();
             cn.Open();
-
             using var tran = cn.BeginTransaction();
 
             try
@@ -155,9 +162,10 @@ namespace POSBasic.Services
                 {
                     cmdClear.CommandType = CommandType.StoredProcedure;
                     cmdClear.Transaction = tran;
-                    cmdClear.Parameters.Add("p_codventa", OracleDbType.Int32).Value = codventa;
+                    cmdClear.Parameters.Add("p_codventa", codventa);
                     cmdClear.ExecuteNonQuery();
                 }
+
                 foreach (DataRow row in dtDetalle.Rows)
                 {
                     using var cmdDet = new OracleCommand("SP_ACTUALIZAR_VENTA_DET", cn)
@@ -166,40 +174,40 @@ namespace POSBasic.Services
                         Transaction = tran
                     };
 
-                    cmdDet.Parameters.Add("p_codventa", OracleDbType.Int32).Value = codventa;
-                    cmdDet.Parameters.Add("p_codproducto", OracleDbType.Int32).Value = Convert.ToInt32(row["CodProducto"]);
-                    cmdDet.Parameters.Add("p_cantidad", OracleDbType.Decimal).Value = Convert.ToDecimal(row["Cantidad"]);
-                    cmdDet.Parameters.Add("p_precio", OracleDbType.Decimal).Value = Convert.ToDecimal(row["Precio"]);
-
+                    cmdDet.Parameters.Add("p_codventa", codventa);
+                    cmdDet.Parameters.Add("p_codproducto", row["CodProducto"]);
+                    cmdDet.Parameters.Add("p_cantidad", row["Cantidad"]);
+                    cmdDet.Parameters.Add("p_precio", row["Precio"]);
                     cmdDet.ExecuteNonQuery();
                 }
 
                 tran.Commit();
             }
-            catch
+            catch (Exception ex)
             {
                 tran.Rollback();
-                throw;
+                throw new Exception("Error al actualizar detalle de venta.", ex);
             }
         }
         public void EliminarVenta(int codventa)
         {
-            using var cn = OracleConnectionFactory.GetConnection();
-            cn.Open();
             try
             {
+                using var cn = _connectionFactory.GetConnection();
+                cn.Open();
+
                 using var cmd = new OracleCommand("SP_ELIMINAR_VENTA", cn)
                 {
                     CommandType = CommandType.StoredProcedure
                 };
-                cmd.Parameters.Add("p_codventa", OracleDbType.Int32).Value = codventa;
+
+                cmd.Parameters.Add("p_codventa", codventa);
                 cmd.ExecuteNonQuery();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error al eliminar la venta: " + ex.Message);
+                throw new Exception("Error al eliminar la venta.", ex);
             }
         }
-
     }
 }

@@ -1,49 +1,52 @@
 ﻿using Oracle.ManagedDataAccess.Client;
-using POSBasic.Database;
-using System;
+using POSBasic.Persistence.Interface;
+using POSBasic.Services.Interfaces;
 using System.Data;
-
 
 namespace POSBasic.Services
 {
-    public class BuscadorService
+    public class BuscadorService : IBuscadorService
     {
-        public DataTable Listar(string nombreTabla, string campoCodigo, string campoDescripcion, string campoExtra1 = "", string campoExtra2 = "", string campoExtra3 = "", string whereCond = "")
+        private readonly IConnectionFactory _connectionFactory;
+
+        public BuscadorService(IConnectionFactory connectionFactory)
         {
-            var dt = new DataTable();
+            _connectionFactory = connectionFactory;
+        }
+
+        public DataTable Listar(
+            string nombreTabla,
+            string campoCodigo,
+            string campoDescripcion,
+            string campoExtra1 = "",
+            string campoExtra2 = "",
+            string campoExtra3 = "",
+            string whereCond = "")
+        {
             try
             {
-                using var cn = OracleConnectionFactory.GetConnection();
+                using var cn = _connectionFactory.GetConnection();
                 cn.Open();
 
                 string sql = $"SELECT {campoCodigo} AS Codigo, {campoDescripcion} AS Descripcion";
 
-                if (!string.IsNullOrEmpty(campoExtra1))
-                    sql += $", {campoExtra1} as CampoExtra1";
-
-                if (!string.IsNullOrEmpty(campoExtra2))
-                    sql += $", {campoExtra2} as CampoExtra2";
-
-                if (!string.IsNullOrEmpty(campoExtra3))
-                    sql += $", {campoExtra3} as CampoExtra3";
+                if (!string.IsNullOrEmpty(campoExtra1)) sql += $", {campoExtra1} AS CampoExtra1";
+                if (!string.IsNullOrEmpty(campoExtra2)) sql += $", {campoExtra2} AS CampoExtra2";
+                if (!string.IsNullOrEmpty(campoExtra3)) sql += $", {campoExtra3} AS CampoExtra3";
 
                 sql += $" FROM {nombreTabla}";
-                if (!string.IsNullOrEmpty(whereCond))
-                    sql += $" WHERE {whereCond}";
+                if (!string.IsNullOrEmpty(whereCond)) sql += $" WHERE {whereCond}";
 
+                var dt = new DataTable();
                 using var da = new OracleDataAdapter(sql, cn);
                 da.Fill(dt);
+
+                return dt;
             }
             catch (OracleException ex)
             {
-                MessageBox.Show("Error Oracle al listar: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                throw new Exception("Error Oracle al realizar la búsqueda.", ex);
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error general al listar: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-
-            return dt;
         }
     }
 }

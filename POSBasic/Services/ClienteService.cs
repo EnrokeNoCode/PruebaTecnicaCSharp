@@ -1,61 +1,68 @@
-﻿
-using Oracle.ManagedDataAccess.Client;
-using POSBasic.Database;
+﻿using Oracle.ManagedDataAccess.Client;
 using POSBasic.Models;
+using POSBasic.Persistence.Interface;
+using POSBasic.Services.Interfaces;
 using System.Data;
 
 namespace POSBasic.Services
 {
-    public class ClienteService
+    public class ClienteService : IClienteService
     {
+        private readonly IConnectionFactory _connectionFactory;
+
+        public ClienteService(IConnectionFactory connectionFactory)
+        {
+            _connectionFactory = connectionFactory;
+        }
         public DataTable Listar()
         {
-            var dt = new DataTable();
             try
             {
-                using var cn = OracleConnectionFactory.GetConnection();
+                using var cn = _connectionFactory.GetConnection();
                 cn.Open();
-                using var da = new OracleDataAdapter("SELECT codcliente, nrodoc, nombre, apellido FROM cliente", cn);
+
+                using var cmd = new OracleCommand("SP_LISTAR_CLIENTES", cn)
+                {
+                    CommandType = CommandType.StoredProcedure
+                };
+
+                cmd.Parameters.Add("p_cursor", OracleDbType.RefCursor)
+                              .Direction = ParameterDirection.Output;
+
+                var dt = new DataTable();
+                using var da = new OracleDataAdapter(cmd);
                 da.Fill(dt);
+
+                return dt;
             }
             catch (OracleException ex)
             {
-                MessageBox.Show("Error Oracle al listar clientes:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                throw new Exception("Error al listar clientes.", ex);
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error general al listar clientes:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            return dt;
         }
 
         public bool Insertar(Clientes c)
         {
             try
             {
-                using var cn = OracleConnectionFactory.GetConnection();
+                using var cn = _connectionFactory.GetConnection();
                 cn.Open();
 
-                using var cmd = new OracleCommand("sp_insertar_cliente", cn);
-                cmd.CommandType = CommandType.StoredProcedure;
+                using var cmd = new OracleCommand("sp_insertar_cliente", cn)
+                {
+                    CommandType = CommandType.StoredProcedure
+                };
 
                 cmd.Parameters.Add(":p_nrodoc", c.nrodoc);
                 cmd.Parameters.Add(":p_nombre", c.nombre);
                 cmd.Parameters.Add(":p_apellido", c.apellido);
 
                 cmd.ExecuteNonQuery();
-
                 return true;
             }
             catch (OracleException ex)
             {
-                MessageBox.Show("Error Oracle: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error general: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
+                throw new Exception("Error al insertar cliente.", ex);
             }
         }
 
@@ -63,9 +70,8 @@ namespace POSBasic.Services
         {
             try
             {
-                using var cn = OracleConnectionFactory.GetConnection();
+                using var cn = _connectionFactory.GetConnection();
                 cn.Open();
-
                 using var tran = cn.BeginTransaction();
 
                 using var cmd = new OracleCommand("SP_ACTUALIZAR_CLIENTE", cn)
@@ -74,56 +80,52 @@ namespace POSBasic.Services
                     Transaction = tran
                 };
 
-                cmd.Parameters.Add("p_codcliente", OracleDbType.Int32).Value = c.codcliente;
-                cmd.Parameters.Add("p_nrodoc", OracleDbType.Varchar2).Value = c.nrodoc;
-                cmd.Parameters.Add("p_nombre", OracleDbType.Varchar2).Value = c.nombre;
-                cmd.Parameters.Add("p_apellido", OracleDbType.Varchar2).Value = c.apellido;
+                cmd.Parameters.Add("p_codcliente", c.codcliente);
+                cmd.Parameters.Add("p_nrodoc", c.nrodoc);
+                cmd.Parameters.Add("p_nombre", c.nombre);
+                cmd.Parameters.Add("p_apellido", c.apellido);
 
                 cmd.ExecuteNonQuery();
-
                 tran.Commit();
                 return true;
             }
             catch (OracleException ex)
             {
-                MessageBox.Show( ex.Message, "Validación", MessageBoxButtons.OK,MessageBoxIcon.Warning);
-                return false;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show( "Error al actualizar cliente: " + ex.Message,"Error",MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return false;
+                throw new Exception("Error al actualizar cliente.", ex);
             }
         }
 
-        public bool Eliminar(int codcliente)
+        public bool Eliminar(int codcliente, out string mensajeError)
         {
+            mensajeError = string.Empty;
+            using var cn = _connectionFactory.GetConnection();
+            cn.Open();
+            using var tran = cn.BeginTransaction();
+
             try
             {
-                using var cn = OracleConnectionFactory.GetConnection();
-                cn.Open();
-
-                using var tran = cn.BeginTransaction();
                 using var cmd = new OracleCommand("SP_ELIMINAR_CLIENTE", cn)
                 {
                     CommandType = CommandType.StoredProcedure,
                     Transaction = tran
                 };
-                cmd.Parameters.Add("p_codcliente", OracleDbType.Int32).Value = codcliente;
 
+                cmd.Parameters.Add("p_codcliente", codcliente);
                 cmd.ExecuteNonQuery();
-                tran.Commit();
 
+                tran.Commit();
                 return true;
             }
             catch (OracleException ex)
             {
-                MessageBox.Show( ex.Message, "Error",MessageBoxButtons.OK, MessageBoxIcon.Warning );
+                tran.Rollback();
+                mensajeError = ex.Message;
                 return false;
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error al eliminar cliente: " + ex.Message,"Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                tran.Rollback();
+                mensajeError = "Error inesperado: " + ex.Message;
                 return false;
             }
         }

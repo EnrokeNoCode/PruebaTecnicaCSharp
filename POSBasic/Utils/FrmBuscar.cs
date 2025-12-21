@@ -1,4 +1,5 @@
 ﻿using POSBasic.Services;
+using POSBasic.Services.Interfaces;
 using System.Data;
 
 namespace POSBasic.Utils
@@ -6,7 +7,7 @@ namespace POSBasic.Utils
     public partial class FrmBuscar : Form
     {
         public DataRow Resultado { get; private set; } = null;
-        private BuscadorService _service;
+        private readonly IBuscadorService _service;
 
         // Variables que indican qué tabla y campos vamos a mostrar
         private string _nombreTabla;
@@ -18,7 +19,7 @@ namespace POSBasic.Utils
         private string _whereCond;
 
         // Constructor del form, se reciben los campos de la tabla a buscar
-        public FrmBuscar(
+        public FrmBuscar(IBuscadorService service,
             string nombreTabla,
             string campoCodigo,
             string campoDescripcion,
@@ -28,8 +29,7 @@ namespace POSBasic.Utils
             string whereCond = "")
         {
             InitializeComponent();
-
-            _service = new BuscadorService(); // Instanciamos el servicio
+            _service = service;
 
             // Guardamos los parámetros en las variables internas
             _nombreTabla = nombreTabla;

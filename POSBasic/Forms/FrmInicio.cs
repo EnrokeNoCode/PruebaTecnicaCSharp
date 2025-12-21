@@ -1,30 +1,33 @@
+using Microsoft.Extensions.DependencyInjection;
 using POSBasic.Forms;
 
 namespace POSBasic
 {
     public partial class FrmInicio : Form
     {
-        public FrmInicio()
+        private readonly IServiceProvider _provider;
+        public FrmInicio(IServiceProvider provider)
         {
             InitializeComponent();
+            _provider = provider;
         }
 
         private void clienteToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            FrmClientes frm = new FrmClientes();
-            frm.Show();
+            using var f = _provider.GetRequiredService<FrmClientes>();
+            f.ShowDialog();
         }
 
         private void productoToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            FrmProductos frm = new FrmProductos();
-            frm.Show();
+            using var f = _provider.GetRequiredService<FrmProductos>();
+            f.ShowDialog();
         }
 
         private void ventaToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            FrmVentas frm = new FrmVentas();
-            frm.Show();
+            using var f = _provider.GetRequiredService<FrmVentas>();
+            f.ShowDialog();
         }
 
         private void FrmInicio_Load(object sender, EventArgs e)

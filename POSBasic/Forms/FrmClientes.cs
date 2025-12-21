@@ -1,14 +1,15 @@
 ﻿using POSBasic.Models;
-using POSBasic.Services;
+using POSBasic.Services.Interfaces;
 
 namespace POSBasic.Forms
 {
     public partial class FrmClientes : Form
     {
-        private ClienteService _service = new ClienteService();
-        public FrmClientes()
+        private readonly IClienteService _service;
+        public FrmClientes(IClienteService service)
         {
             InitializeComponent();
+            _service = service;
             InhabilitarCampos();
             txtCodCliente.Visible = false;
             txtNroDoc.KeyPress += Txt_KeyPress_Enter;
@@ -114,7 +115,7 @@ namespace POSBasic.Forms
             var resultado = MessageBox.Show("¿Desea eliminar el cliente seleccionado?", "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             if (resultado != DialogResult.Yes) return;
 
-            if (_service.Eliminar((int)txtCodCliente.Tag))
+            if (_service.Eliminar((int)txtCodCliente.Tag, out string error))
             {
                 MessageBox.Show("Cliente eliminado correctamente.", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 dgvClientes.DataSource = _service.Listar();
@@ -122,6 +123,10 @@ namespace POSBasic.Forms
                 LimpiarForm();
                 InhabilitarCampos();
                 ValidarBotonesInicio();
+            }
+            else
+            {
+                MessageBox.Show("Error al eliminar: " + error, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

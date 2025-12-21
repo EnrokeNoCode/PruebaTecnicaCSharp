@@ -1,5 +1,5 @@
 --------------------------------------------------------
--- Archivo creado  - sábado-diciembre-20-2025   
+-- Archivo creado  - domingo-diciembre-21-2025   
 --------------------------------------------------------
 --------------------------------------------------------
 --  DDL for Table CLIENTE
@@ -71,22 +71,32 @@
   TABLESPACE "USERS" ;
 REM INSERTING into EXAMPLE_API.CLIENTE
 SET DEFINE OFF;
+Insert into EXAMPLE_API.CLIENTE (CODCLIENTE,NRODOC,NOMBRE,APELLIDO) values ('41','2321451','afdf','afasdfa');
 Insert into EXAMPLE_API.CLIENTE (CODCLIENTE,NRODOC,NOMBRE,APELLIDO) values ('2','4237259','Enroque','Torales');
 Insert into EXAMPLE_API.CLIENTE (CODCLIENTE,NRODOC,NOMBRE,APELLIDO) values ('21','5555666','Prueba','Prueba');
 REM INSERTING into EXAMPLE_API.PRODUCTO
 SET DEFINE OFF;
 Insert into EXAMPLE_API.PRODUCTO (CODPRODUCTO,CODIGOBARRA,DESPRODUCTO,PRECIOVENTA,STOCK) values ('41','23132123','prueba333','2500','10');
-Insert into EXAMPLE_API.PRODUCTO (CODPRODUCTO,CODIGOBARRA,DESPRODUCTO,PRECIOVENTA,STOCK) values ('21','12345','pruebax','15000','27');
+Insert into EXAMPLE_API.PRODUCTO (CODPRODUCTO,CODIGOBARRA,DESPRODUCTO,PRECIOVENTA,STOCK) values ('81','3423143','dxfdfd','1444','5');
+Insert into EXAMPLE_API.PRODUCTO (CODPRODUCTO,CODIGOBARRA,DESPRODUCTO,PRECIOVENTA,STOCK) values ('21','12345','pruebax','15000','2');
 Insert into EXAMPLE_API.PRODUCTO (CODPRODUCTO,CODIGOBARRA,DESPRODUCTO,PRECIOVENTA,STOCK) values ('61','21324141','Producto Nuevo','1500','3');
 REM INSERTING into EXAMPLE_API.VENTA
 SET DEFINE OFF;
+Insert into EXAMPLE_API.VENTA (CODVENTA,FECHAVENTA,NUMVENTA,CODCLIENTE,TOTALVENTA) values ('41',to_date('21/12/25','DD/MM/RR'),'123','21','75000');
 Insert into EXAMPLE_API.VENTA (CODVENTA,FECHAVENTA,NUMVENTA,CODCLIENTE,TOTALVENTA) values ('22',to_date('20/12/25','DD/MM/RR'),'005','2','48000');
+Insert into EXAMPLE_API.VENTA (CODVENTA,FECHAVENTA,NUMVENTA,CODCLIENTE,TOTALVENTA) values ('47',to_date('21/12/25','DD/MM/RR'),'34232','41','7220');
+Insert into EXAMPLE_API.VENTA (CODVENTA,FECHAVENTA,NUMVENTA,CODCLIENTE,TOTALVENTA) values ('48',to_date('21/12/25','DD/MM/RR'),'523','2','75000');
 Insert into EXAMPLE_API.VENTA (CODVENTA,FECHAVENTA,NUMVENTA,CODCLIENTE,TOTALVENTA) values ('21',to_date('20/12/25','DD/MM/RR'),'55555','2','7500');
+Insert into EXAMPLE_API.VENTA (CODVENTA,FECHAVENTA,NUMVENTA,CODCLIENTE,TOTALVENTA) values ('23',to_date('20/12/25','DD/MM/RR'),'006','21','225000');
 REM INSERTING into EXAMPLE_API.VENTADET
 SET DEFINE OFF;
+Insert into EXAMPLE_API.VENTADET (CODVENTA,CODPRODUCTO,CANTIDADVENTA,PRECIOVENTA,TOTALLINEA,NUMLINEA) values ('41','21','5','15000','75000','1');
 Insert into EXAMPLE_API.VENTADET (CODVENTA,CODPRODUCTO,CANTIDADVENTA,PRECIOVENTA,TOTALLINEA,NUMLINEA) values ('22','21','3','15000','45000','1');
 Insert into EXAMPLE_API.VENTADET (CODVENTA,CODPRODUCTO,CANTIDADVENTA,PRECIOVENTA,TOTALLINEA,NUMLINEA) values ('22','61','2','1500','3000','2');
+Insert into EXAMPLE_API.VENTADET (CODVENTA,CODPRODUCTO,CANTIDADVENTA,PRECIOVENTA,TOTALLINEA,NUMLINEA) values ('47','81','5','1444','7220','1');
+Insert into EXAMPLE_API.VENTADET (CODVENTA,CODPRODUCTO,CANTIDADVENTA,PRECIOVENTA,TOTALLINEA,NUMLINEA) values ('48','21','5','15000','75000','1');
 Insert into EXAMPLE_API.VENTADET (CODVENTA,CODPRODUCTO,CANTIDADVENTA,PRECIOVENTA,TOTALLINEA,NUMLINEA) values ('21','61','5','1500','7500','1');
+Insert into EXAMPLE_API.VENTADET (CODVENTA,CODPRODUCTO,CANTIDADVENTA,PRECIOVENTA,TOTALLINEA,NUMLINEA) values ('23','21','15','15000','225000','1');
 --------------------------------------------------------
 --  DDL for Procedure SP_ACTUALIZAR_CLIENTE
 --------------------------------------------------------
@@ -488,6 +498,11 @@ BEGIN
     UPDATE producto
     SET stock = stock - p_cantidad
     WHERE codproducto = p_codproducto;
+
+    -- Actualizar total de la venta
+    UPDATE venta
+    SET totalventa = (SELECT NVL(SUM(totallinea), 0) FROM ventadet WHERE codventa = p_codventa)
+    WHERE codventa = p_codventa;
 END SP_INSERTAR_VENTA_DET;
 
 /
@@ -516,6 +531,103 @@ BEGIN
     DELETE FROM ventadet
     WHERE codventa = p_codventa;
 END SP_LIMPIAR_DETALLE_VENTA;
+
+/
+--------------------------------------------------------
+--  DDL for Procedure SP_LISTAR_CLIENTES
+--------------------------------------------------------
+set define off;
+
+  CREATE OR REPLACE EDITIONABLE PROCEDURE "EXAMPLE_API"."SP_LISTAR_CLIENTES" (
+    p_cursor OUT SYS_REFCURSOR
+)
+AS
+BEGIN
+    OPEN p_cursor FOR
+        SELECT codcliente, nrodoc, nombre, apellido FROM cliente order by codcliente;
+END;
+
+/
+--------------------------------------------------------
+--  DDL for Procedure SP_LISTAR_COD_VENTAS
+--------------------------------------------------------
+set define off;
+
+  CREATE OR REPLACE EDITIONABLE PROCEDURE "EXAMPLE_API"."SP_LISTAR_COD_VENTAS" (
+    p_cursor OUT SYS_REFCURSOR
+)
+AS
+BEGIN
+    OPEN p_cursor FOR
+        SELECT codventa
+        FROM venta
+        ORDER BY codventa DESC;
+END;
+
+/
+--------------------------------------------------------
+--  DDL for Procedure SP_LISTAR_PRODUCTOS
+--------------------------------------------------------
+set define off;
+
+  CREATE OR REPLACE EDITIONABLE PROCEDURE "EXAMPLE_API"."SP_LISTAR_PRODUCTOS" (
+    p_cursor OUT SYS_REFCURSOR
+)
+AS
+BEGIN
+    OPEN p_cursor FOR
+        SELECT codproducto, codigobarra, desproducto, precioventa, stock FROM PRODUCTO order by codproducto;
+END;
+
+/
+--------------------------------------------------------
+--  DDL for Procedure SP_OBTENER_CABECERA_VENTA
+--------------------------------------------------------
+set define off;
+
+  CREATE OR REPLACE EDITIONABLE PROCEDURE "EXAMPLE_API"."SP_OBTENER_CABECERA_VENTA" (
+    p_codventa IN NUMBER,
+    p_cursor   OUT SYS_REFCURSOR
+)
+AS
+BEGIN
+    OPEN p_cursor FOR
+        SELECT v.codventa,
+               v.fechaventa,
+               v.numventa,
+               v.codcliente,
+               c.nrodoc,
+               c.nombre || ', ' || c.apellido AS cliente,
+               v.totalventa
+        FROM venta v
+        JOIN cliente c ON c.codcliente = v.codcliente
+        WHERE v.codventa = p_codventa;
+END;
+
+/
+--------------------------------------------------------
+--  DDL for Procedure SP_OBTENER_DETALLE_VENTA
+--------------------------------------------------------
+set define off;
+
+  CREATE OR REPLACE EDITIONABLE PROCEDURE "EXAMPLE_API"."SP_OBTENER_DETALLE_VENTA" (
+    p_codventa IN NUMBER,
+    p_cursor   OUT SYS_REFCURSOR
+)
+AS
+BEGIN
+    OPEN p_cursor FOR
+        SELECT d.codproducto,
+               p.codigobarra,
+               p.desproducto,
+               d.cantidadventa AS cantidad,
+               d.precioventa   AS precio,
+               d.totallinea    AS subtotal
+        FROM ventadet d
+        JOIN producto p ON p.codproducto = d.codproducto
+        WHERE d.codventa = p_codventa
+        ORDER BY d.numlinea;
+END;
 
 /
 --------------------------------------------------------

@@ -1,5 +1,5 @@
 ﻿
-using POSBasic.Services;
+using POSBasic.Services.Interfaces;
 using POSBasic.Utils;
 using System.Data;
 
@@ -8,21 +8,25 @@ namespace POSBasic.Forms
 {
     public partial class FrmVentas : Form
     {
-        private VentaService _ventaService = new VentaService();
+        private readonly IVentaService _ventaService;
+        private readonly IBuscadorService _buscadorService;
         private DataTable dtDetalle;
         private int _filaSeleccionada = -1;
         private DataTable dtVentas;
         private int indiceVenta = -1;
         private int _editar = 0;
 
-        public FrmVentas()
+        public FrmVentas(IVentaService ventaService, IBuscadorService buscadorService)
         {
             InitializeComponent();
+            _ventaService = ventaService;
+            _buscadorService = buscadorService;
             InhabilitarCampos();
             txtCodVenta.Visible = false;
             txtNumVenta.KeyPress += Txt_KeyPress_Enter;
             txtCliente.KeyPress += Txt_KeyPress_Enter;
             txtCodigoBarra.KeyPress += Txt_KeyPress_Enter;
+            
         }
 
         private void FrmVentas_Load(object sender, EventArgs e)
@@ -268,7 +272,7 @@ namespace POSBasic.Forms
         /* funciones y validaciones */
         private void AbrirBuscadorCliente()
         {
-            using FrmBuscar f = new FrmBuscar(
+            using FrmBuscar f = new FrmBuscar(_buscadorService,
                 nombreTabla: "CLIENTE C ",
                 campoCodigo: "C.CODCLIENTE",
                 campoDescripcion: "C.NRODOC",
@@ -287,7 +291,7 @@ namespace POSBasic.Forms
         }
         private void AbrirBuscadorProducto()
         {
-            using FrmBuscar f = new FrmBuscar(
+            using FrmBuscar f = new FrmBuscar(_buscadorService,
                 nombreTabla: "PRODUCTO P ",
                 campoCodigo: "P.CODPRODUCTO",
                 campoDescripcion: "P.CODIGOBARRA",
