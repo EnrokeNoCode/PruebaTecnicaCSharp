@@ -21,7 +21,7 @@ namespace POSBasic.Services
                 using var cn = _connectionFactory.GetConnection();
                 cn.Open();
 
-                using var cmd = new OracleCommand("SP_LISTAR_CLIENTES", cn)
+                using var cmd = new OracleCommand("PKG_CLIENTE.LISTAR", cn)
                 {
                     CommandType = CommandType.StoredProcedure
                 };
@@ -48,7 +48,7 @@ namespace POSBasic.Services
                 using var cn = _connectionFactory.GetConnection();
                 cn.Open();
 
-                using var cmd = new OracleCommand("sp_insertar_cliente", cn)
+                using var cmd = new OracleCommand("PKG_CLIENTE.INSERTAR", cn)
                 {
                     CommandType = CommandType.StoredProcedure
                 };
@@ -74,7 +74,7 @@ namespace POSBasic.Services
                 cn.Open();
                 using var tran = cn.BeginTransaction();
 
-                using var cmd = new OracleCommand("SP_ACTUALIZAR_CLIENTE", cn)
+                using var cmd = new OracleCommand("PKG_CLIENTE.ACTUALIZAR", cn)
                 {
                     CommandType = CommandType.StoredProcedure,
                     Transaction = tran
@@ -104,7 +104,7 @@ namespace POSBasic.Services
 
             try
             {
-                using var cmd = new OracleCommand("SP_ELIMINAR_CLIENTE", cn)
+                using var cmd = new OracleCommand("PKG_CLIENTE.ELIMINAR", cn)
                 {
                     CommandType = CommandType.StoredProcedure,
                     Transaction = tran
