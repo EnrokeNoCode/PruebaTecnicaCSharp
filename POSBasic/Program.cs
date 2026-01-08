@@ -20,13 +20,13 @@ namespace POSBasic
 
             var services = new ServiceCollection();
 
-            services.AddSingleton<IConnectionFactory>(new OracleConnectionFactory("User Id=example_api;Password=Example_123;Data Source=localhost:1521/XEPDB1"));
+            services.AddScoped<IServiceBusAuth, ServiceBusAuth>();
+            services.AddScoped<IConnectionFactory, OracleConnectionFactory>();
 
             services.AddScoped<IVentaService, VentaService>();
             services.AddScoped<IProductoService, ProductoService>();
             services.AddScoped<IClienteService, ClienteService>();
             services.AddSingleton<IBuscadorService, BuscadorService>();
-
 
             services.AddTransient<FrmInicio>();
             services.AddTransient<FrmVentas>();
